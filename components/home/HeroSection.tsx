@@ -8,25 +8,25 @@ const nameChars = siteConfig.name.split("");
 
 const roles = ["Frontend Developer", "React & TypeScript Developer", "AI Application Developer"];
 
-const stats = [
-  { label: "项目", value: `${siteConfig.projects.length}+`, icon: FiCode },
-  { label: "文章", value: "0+", icon: FiBookOpen },
-  { label: "GitHub", value: siteConfig.github, icon: FiGithub },
-];
+export function HeroSection({ postCount = 0 }: { postCount?: number }) {
+  const stats = [
+    { label: "项目", value: `${siteConfig.projects.length}+`, icon: FiCode },
+    { label: "文章", value: `${postCount}+`, icon: FiBookOpen },
+    { label: "GitHub", value: siteConfig.github, icon: FiGithub },
+  ];
 
-const socials = [
-  {
-    icon: FiGithub,
-    href: `https://github.com/${siteConfig.github}`,
-    label: "GitHub",
-  },
-  ...(siteConfig.email
-    ? [{ icon: FiMail, href: `mailto:${siteConfig.email}`, label: "Email" }]
-    : []),
-  { icon: FiFileText, href: "/resume", label: "简历" },
-];
+  const socials = [
+    {
+      icon: FiGithub,
+      href: `https://github.com/${siteConfig.github}`,
+      label: "GitHub",
+    },
+    ...(siteConfig.email
+      ? [{ icon: FiMail, href: `mailto:${siteConfig.email}`, label: "Email" }]
+      : []),
+    { icon: FiFileText, href: "/resume", label: "简历" },
+  ];
 
-export function HeroSection() {
   return (
     <section className="min-h-[calc(100dvh-4rem)] flex flex-col items-center text-center px-4">
       {/* Main content - vertically centered */}
