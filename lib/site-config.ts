@@ -1,7 +1,7 @@
 export const siteConfig = {
   name: "张宇豪",
   nameEn: "Yuhao Zhang",
-  avatar: "/avatar1.jpg",
+  avatar: "/avatar.png",
   title: "Yuhao Zhang | Frontend Developer",
   description: "Frontend developer specializing in React, TypeScript and AI-powered applications.",
   url: "https://zyh-website1-0.vercel.app/",
