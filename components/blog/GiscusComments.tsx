@@ -50,10 +50,10 @@ export function GiscusComments() {
 
     const script = document.createElement("script");
     script.src = "https://giscus.app/client.js";
-    script.setAttribute("data-repo", "provamonijafar-gif/personal-portfolio"); // TODO: Replace with your GitHub repository for Giscus comments
-    script.setAttribute("data-repo-id", "R_kgDORdXyGA");
+    script.setAttribute("data-repo", "provamonijafar-gif/Personal-Portfolio-Website"); // TODO: Replace with your GitHub repository for Giscus comments
+    script.setAttribute("data-repo-id", "R_kgDOTagmdA");
     script.setAttribute("data-category", "Announcements");
-    script.setAttribute("data-category-id", "DIC_kwDORdXyGM4C3mRl");
+    script.setAttribute("data-category-id", "DIC_kwDOTagmdM4DGJmf");
     script.setAttribute("data-mapping", "pathname");
     script.setAttribute("data-strict", "0");
     script.setAttribute("data-reactions-enabled", "1");
