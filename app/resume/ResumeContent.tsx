@@ -48,7 +48,7 @@ interface ResumeVersion {
 const resumeVersions: ResumeVersion[] = [
   {
     key: "v1-2026",
-    label: "2026 Frontend Internship Resume",
+    label: "2026 前端实习简历",
     date: "2026-07",
     header: {
       name: siteConfig.name,
@@ -58,44 +58,44 @@ const resumeVersions: ResumeVersion[] = [
     },
     sections: {
       summary:
-        "Information Management and Information Systems student focusing on frontend development and AI-powered applications. Experienced with React, TypeScript and Next.js, with hands-on experience building AI-driven BI analysis platforms and modern web applications.",
+        "信息管理与信息系统专业学生，专注于前端开发与 AI 驱动的应用。熟悉 React、TypeScript 和 Next.js，有构建 AI 驱动的 BI 分析平台和现代 Web 应用的实战经验。",
       personalEvaluation: [
-        "Passionate about frontend development and continuously learning modern web technologies.",
-        "Experienced in building practical projects with React, TypeScript and AI applications.",
-        "Enjoys solving engineering problems and improving user experience.",
+        "热爱前端开发，持续学习现代 Web 技术。",
+        "有使用 React、TypeScript 构建 AI 应用的实战项目经验。",
+        "善于解决工程问题，注重提升用户体验。",
       ],
       education: [
         {
-          school: "Southwest University of Science and Technology",
-          degree: "Bachelor of Information Management and Information Systems",
+          school: "西南科技大学",
+          degree: "信息管理与信息系统 本科",
           gpa: "",
           period: "2024.09 - 2028.07",
-          details: ["Relevant coursework: Data Structures, Database Systems, Computer Networks and Software Engineering"],
+          details: ["主修课程：数据结构、数据库系统、计算机网络与软件工程"],
         },
       ],
       skills: [
-        "Frontend: React, TypeScript, Next.js, Tailwind CSS, Ant Design, ECharts",
-        "Backend: Java, Spring Boot, MySQL, Redis",
-        "Engineering: Git, GitHub Actions, ESLint, Prettier",
-        "AI Application Development: LLM-based applications, AI coding tools",
+        "前端：React, TypeScript, Next.js, Tailwind CSS, Ant Design, ECharts",
+        "后端：Java, Spring Boot, MySQL, Redis",
+        "工程化：Git, GitHub Actions, ESLint, Prettier",
+        "AI 应用开发：基于 LLM 的应用, AI 编程工具",
       ],
       experience: [],
       projects: [
         {
-          name: "AI Intelligent BI Analysis Platform",
+          name: "AI 智能 BI 分析平台",
           tech: "React, TypeScript, ECharts, Ant Design, zod, react-window",
           points: [
-            "Built an AI-powered BI analysis platform that allows users to upload Excel/CSV files and generate visualization charts and analysis insights through large language models.",
-            "Implemented runtime validation for AI-generated ECharts configurations using zod to improve reliability.",
-            "Developed asynchronous task processing and optimized large-scale data rendering with react-window.",
+            "构建了一个 AI 驱动的 BI 分析平台，用户可上传 Excel/CSV 文件，通过大语言模型生成可视化图表和分析洞察。",
+            "使用 zod 对 AI 生成的 ECharts 配置进行运行时校验，提升系统可靠性。",
+            "开发了异步任务处理机制，并使用 react-window 优化大规模数据渲染。",
           ],
         },
         {
-          name: "Personal Portfolio Website",
+          name: "个人作品集网站",
           tech: "Next.js, React, TypeScript, Tailwind CSS, MDX, Framer Motion",
           points: [
-            "Built and deployed a modern personal portfolio website with responsive design and animation effects.",
-            "Integrated MDX-based content management and deployed the application using Vercel.",
+            "构建并部署了一个现代个人作品集网站，具备响应式设计和动画效果。",
+            "集成基于 MDX 的内容管理系统，使用 Vercel 部署应用。",
           ],
         },
       ],
@@ -299,7 +299,7 @@ export function ResumeContent() {
         <GitHubContribution />
       </div>
 
-      <MottoBlock text="Stay hungry. Stay foolish." />
+      <MottoBlock text="求知若饥，虚心若愚。" />
     </div>
   );
 }
