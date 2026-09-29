@@ -1,0 +1,77 @@
+---
+title: "深入浅出 Webpack 核心原理：Compiler、Compilation 与三大构建阶段"
+date: "2025-08-01"
+description: "从 Webpack 核心架构出发，讲清 Compiler、Compilation、Plugins 三大支柱的设计与协作，以及初始化、构建、生成三大生命周期阶段的全流程。"
+tags: ["前端", "Webpack", "构建工具"]
+---
+
+# 深入浅出 Webpack 核心原理：Compiler、Compilation 与三大构建阶段
+
+在日常的前端开发中，Webpack 复杂的配置项常常让人头疼。但当我们剥开繁冗的配置外衣，去探究其底层运行逻辑时，会发现它的核心运转机制非常清晰。这篇文章结合我近期的学习总结，带你梳理 Webpack 的核心运转流程，希望能帮你建立起对 Webpack 宏观架构的认知。
+
+## 一、核心架构抽象：三大支柱
+
+在学习 Webpack 源码或原理时，我们很容易迷失在浩瀚的代码里。但某种程度上，我们可以将 Webpack 架构极度简化为：compiler + compilation + plugins。
+
+理解这三个核心对象的设计、职责与协作，差不多就能理解 Webpack 的核心逻辑了。
+
+- **Compiler（总指挥）**：全局唯一。它负责读取配置、注册插件、掌控整个 Webpack 的生命周期。它不负责具体的编译工作，而是搭台子。
+- **Compilation（施工队）**：每次编译（无论是初次构建，还是 watch = true 时文件发生变更）都会创建一个新的 compilation 对象。它包含了当前编译过程的全部信息，负责真正的模块解析、依赖图构建和代码生成。
+- **Plugins（各个监管部门）**：通过订阅 compiler 和 compilation 暴露的钩子（Hooks），在特定时机介入，改变构建结果。
+
+> **核心记忆点**
+> Webpack 运行过程中只会有一个 compiler；而每次编译 —— 包括调用 compiler.run 函数或者 watch = true 时文件发生变更，都会创建一个 compilation 对象。
+
+## 二、核心生命周期拆解
+
+Webpack 的完整构建过程，可以清晰地划分为三个大阶段：
+
+### 1. 初始化阶段 (Initialization)
+
+在这个阶段，Webpack 主要在做“准备工作”。
+
+Webpack 首先会读取并合并 webpack.config.js 和命令行参数（CLI options）。
+
+利用内置插件创建 compiler 编译对象实例。在这个阶段，Webpack 会依次调用配置中的 plugins，将它们的 apply 方法执行，把各个插件挂载到 Compiler 的生命周期钩子上。
+
+最后，执行 compiler.run() 或 compiler.watch()，正式进入构建流程。
+
+### 2. 构建阶段 (Make/Build)
+
+这是 Webpack 最耗时、最核心的过程，其本质是一个深度优先的递归遍历。
+
+这个阶段的数据流可以用一个极其精简的公式来概括：
+
+module => ast => dependences => module
+
+具体发生了什么？
+
+- **入口启动**：从 entry 配置出发，找到入口文件（Module）。
+- **加载与转换**：调用对应的 Loader 将文件（如 .vue, .scss）转换为标准的 JS 代码。
+- **生成 AST 与解析依赖**：将 JS 代码解析成抽象语法树（AST），遍历 AST 找出所有的 import / require 语句，收集依赖（Dependences）。
+- **递归构建**：根据收集到的依赖，继续去解析下一个 Module，如此循环往复，最终构建出一张完整的模块依赖图（Module Graph）。
+
+这个过程就像剥洋葱，一层一层向内解析，直到所有依赖都被处理完毕。
+
+### 3. 生成阶段 (Seal)
+
+当模块图构建完成后，Webpack 进入 seal 阶段。此时，Webpack 开始将 module 变成 chunks。
+
+在这个阶段，Webpack 会根据配置和代码结构对 Chunk 进行划分：
+
+- **初始 Chunk**：entry 及 entry 触发到的模块（即同步引入的模块），组合成一个 chunk。
+- **动态 Chunk**：使用动态引入语句（如 import('...')）引入的模块，各自组合成一个独立的 chunk。（这也是实现路由懒加载、代码分割的核心原理）。
+
+生成 Chunk 后，Webpack 还会进行一系列优化（如 Tree Shaking 剔除死代码、Scope Hoisting 作用域提升、压缩代码等）。
+
+最后，Webpack 会将最终的产物写入文件系统。至此，一次完整的编译流程结束。
+
+## 三、总结
+
+再次回顾我们的核心架构总结：
+
+某种程度上可以将 Webpack 架构简化为 compiler + compilation + plugins。Webpack 运行过程中只会有一个 compiler；而每次编译 —— 包括调用 compiler.run 函数或者 watch = true 时文件发生变更，都会创建一个 compilation 对象。理解这三个核心对象的设计、职责、协作，差不多就能理解 Webpack 的核心逻辑了。
+
+理解了这个流程，下次当你面对性能优化需求时（比如如何减少打包体积、如何加快构建速度），你就不会只是盲目地改配置了。你会知道，应该去干涉哪个阶段 —— 比如在构建阶段优化 Loader 的解析范围，或者在生成阶段利用 SplitChunksPlugin 调整 Chunk 的划分策略。
+
+希望这篇文章能帮你建立起 Webpack 的核心知识骨架！

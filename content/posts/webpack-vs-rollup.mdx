@@ -1,0 +1,504 @@
+---
+title: "Webpack 和 Rollup 有什么区别？"
+date: "2026-09-29"
+description: "从配置、文件转换、开发服务器、HMR、Tree-Shaking、打包方式、构建结果以及应用场景几个方面，对比 Webpack 和 Rollup 的设计侧重点与选型思路。"
+tags: ["前端", "Webpack", "Rollup", "构建工具"]
+---
+
+# Webpack 和 Rollup 有什么区别？
+
+在前端项目中，Webpack 和 Rollup 都是常见的构建工具。
+
+简单来说，它们都可以完成：
+
+- 模块打包
+- 代码转换
+- Tree-Shaking
+- 代码压缩
+- 代码分割
+- 开发环境构建
+
+但是，两者的设计目标和使用场景并不完全相同。
+
+本文主要从**配置、文件转换、开发服务器、HMR、Tree-Shaking、打包方式、构建结果以及应用场景**几个方面，对 Webpack 和 Rollup 进行对比。
+
+---
+
+## 一、Webpack 和 Rollup 的核心区别
+
+先用一张表快速了解两者的区别：
+
+| 对比维度 | Webpack | Rollup |
+| --- | --- | --- |
+| 定位 | Web 应用构建工具 | JavaScript 模块打包工具 |
+| 配置 | 配置相对复杂 | 配置相对简单 |
+| 文件转换 | Loader | Plugin |
+| 插件体系 | Loader + Plugin | Plugin |
+| Tree-Shaking | 支持 | 对 ES Module 优化较突出 |
+| 代码分割 | 支持 | 支持 |
+| HMR | 支持 | 可通过生态工具实现开发体验 |
+| 静态资源处理 | 能力强 | 相对偏向 JS/ES Module |
+| 生态 | 非常丰富 | 简洁，库开发场景常见 |
+| 典型场景 | 中大型 Web 应用 | JavaScript / UI 库打包 |
+
+这里需要注意：**Webpack 和 Rollup 并不是简单的“谁更好”关系，而是设计侧重点不同。**
+
+---
+
+## 二、配置方式不同
+
+Webpack 的配置相对比较复杂。
+
+一个典型的 Webpack 配置可能需要配置：
+
+- entry
+- output
+- module
+- loader
+- plugins
+- devServer
+- optimization
+- resolve
+
+例如：
+
+```js
+module.exports = {
+  entry: './src/index.js',
+
+  output: {
+    filename: 'bundle.js'
+  },
+
+  module: {
+    rules: [
+      {
+        test: /\.js$/,
+        use: 'babel-loader'
+      }
+    ]
+  }
+}
+```
+
+Rollup 的配置通常更加简洁：
+
+```js
+export default {
+  input: 'src/index.js',
+
+  output: {
+    file: 'dist/bundle.js',
+    format: 'es'
+  }
+}
+```
+
+因此，如果只是针对一个 JavaScript/TypeScript 库进行打包，Rollup 的配置通常更加直观。
+
+而 Webpack 的复杂配置，本质上也是为了提供更加完整的 Web 应用构建能力。
+
+---
+
+## 三、文件转换方式不同：Loader 和 Plugin
+
+这是 Webpack 和 Rollup 一个比较明显的区别。
+
+### Webpack：Loader
+
+Webpack 中经常会看到 Loader。
+
+例如：
+
+```js
+module: {
+  rules: [
+    {
+      test: /\.css$/,
+      use: ['style-loader', 'css-loader']
+    }
+  ]
+}
+```
+
+Loader 主要负责**对某种类型的文件进行转换**。
+
+例如：
+
+```text
+TypeScript
+   ↓
+ts-loader
+   ↓
+JavaScript
+```
+
+```text
+SCSS
+   ↓
+sass-loader
+   ↓
+CSS
+```
+
+---
+
+### Rollup：Plugin
+
+Rollup 更多依赖 Plugin 来扩展能力。
+
+例如：
+
+```js
+plugins: [
+  typescript(),
+  resolve(),
+  commonjs()
+]
+```
+
+Plugin 可以参与模块解析、代码转换、打包等多个阶段。
+
+所以可以简单理解为：
+
+> **Webpack 经常通过 Loader 处理不同类型的模块，通过 Plugin 扩展构建能力。**
+
+> **Rollup 则更加依赖 Plugin 来扩展整个构建流程。**
+
+---
+
+## 四、Dev Server 和 HMR
+
+Webpack 在开发 Web 应用时，一个比较明显的优势就是开发服务器和热更新生态。
+
+例如使用：
+
+```text
+webpack-dev-server
+```
+
+可以在开发过程中启动本地服务器，并配合 HMR（Hot Module Replacement）实现模块热替换。
+
+也就是说：
+
+```text
+修改代码
+   ↓
+Webpack 重新处理模块
+   ↓
+浏览器更新对应模块
+   ↓
+尽可能保留当前页面状态
+```
+
+这对于开发大型 Web 应用非常方便。
+
+Rollup 本身更加关注**模块打包**，并不是围绕完整的 Web 应用开发服务器设计的。
+
+不过需要注意，不能简单地说：
+
+> Rollup 完全没有 HMR。
+
+Rollup 可以通过相关生态工具实现开发服务器和热更新能力，只是相比 Webpack，其核心定位并不是这一块。
+
+---
+
+## 五、Tree-Shaking
+
+Tree-Shaking 是两者经常被拿来比较的一个地方。
+
+所谓 Tree-Shaking，可以简单理解成：
+
+> **把没有使用到的代码从最终构建结果中移除。**
+
+例如：
+
+```js
+// utils.js
+
+export function add() {}
+
+export function minus() {}
+
+export function multiply() {}
+```
+
+如果项目只使用：
+
+```js
+import { add } from './utils'
+```
+
+那么最终构建结果没有必要把 `minus` 和 `multiply` 一起打进去。
+
+---
+
+### Rollup 的优势
+
+Rollup 从设计之初就非常重视 ES Module。
+
+它会分析模块之间的依赖关系：
+
+```text
+index.js
+   ↓
+utils.js
+   ├── add     ← 使用
+   ├── minus   ← 未使用
+   └── multiply← 未使用
+```
+
+然后尽可能只保留真正使用到的代码。
+
+因此 Rollup 在**库打包和 ES Module Tree-Shaking**方面一直具有比较明显的优势。
+
+---
+
+### Webpack 也支持 Tree-Shaking
+
+不过这里有一个容易产生误解的地方：
+
+> **不能认为“Rollup 有 Tree-Shaking，而 Webpack 没有”。**
+
+Webpack 同样支持 Tree-Shaking。
+
+现代 Webpack 配合 ES Module、production mode 等能力，也能够对没有使用的代码进行消除。
+
+因此，更准确的说法应该是：
+
+> **Rollup 从设计理念上更加偏向 ES Module 和库打包，因此在 Tree-Shaking 和生成较为精简的库代码方面具有明显优势；Webpack 同样支持 Tree-Shaking，只是在整体定位上更加偏向完整 Web 应用的构建。**
+
+---
+
+## 六、打包方式和最终产物不同
+
+Webpack 更像是一个完整的 Web 应用构建系统。
+
+它不仅处理 JavaScript，还可以处理：
+
+```text
+JavaScript
+CSS
+图片
+字体
+JSON
+HTML
+各种静态资源
+```
+
+最终可以通过各种 Loader 和 Plugin，把整个 Web 应用组织成浏览器能够加载的资源。
+
+例如：
+
+```text
+src
+├── components
+├── pages
+├── assets
+├── utils
+└── main.js
+       ↓
+    Webpack
+       ↓
+dist
+├── js
+├── css
+├── images
+└── ...
+```
+
+而 Rollup 更强调：
+
+```text
+多个 ES Module
+       ↓
+    Rollup
+       ↓
+  一个或多个 Bundle
+```
+
+尤其是在开发 JavaScript、TypeScript、UI 组件库时，这种模式非常合适。
+
+---
+
+## 七、代码分割
+
+Webpack 对代码分割有比较成熟的支持。
+
+例如一个 Web 应用可能存在：
+
+```text
+首页
+ ↓
+首页代码
+
+用户中心
+ ↓
+用户中心代码
+
+管理后台
+ ↓
+管理后台代码
+```
+
+用户第一次访问首页时，没有必要一次性加载所有页面的代码。
+
+Webpack 可以通过动态 `import()` 等方式进行 Code Splitting：
+
+```js
+const UserPage = () => import('./UserPage')
+```
+
+最终可以把不同模块拆分成不同的 chunk。
+
+这也是 Webpack 在大型 Web 应用中非常重要的能力之一。
+
+Rollup 同样支持代码分割，但它的核心设计并不是围绕大型 Web 应用的复杂资源管理展开的。
+
+---
+
+## 八、构建速度和产物体积
+
+很多资料会直接说：
+
+> Rollup 构建速度比 Webpack 快。
+
+但这个说法其实不能绝对化。
+
+构建速度会受到很多因素影响，例如：
+
+- 项目规模
+- Loader / Plugin 数量
+- TypeScript
+- Babel
+- CSS 处理
+- 图片处理
+- 是否开启压缩
+- 是否使用缓存
+- 是否进行代码分割
+
+所以更准确的理解应该是：
+
+> **在配置相对简单、主要进行 JavaScript/TypeScript 模块打包的场景下，Rollup 通常能够保持比较简洁的构建流程，并且生成的库代码往往比较精简。**
+
+而 Webpack 为了支持大型 Web 应用，需要处理更多类型的资源和构建需求，因此整体配置和构建流程通常更加复杂。
+
+---
+
+## 九、生态和扩展性
+
+Webpack 的生态非常丰富。
+
+例如：
+
+```text
+webpack
+├── webpack-dev-server
+├── babel-loader
+├── css-loader
+├── style-loader
+├── html-webpack-plugin
+└── ...
+```
+
+对于大型 Web 应用来说，需要处理的需求非常多：
+
+```text
+JS
+CSS
+图片
+字体
+HTML
+代码分割
+HMR
+缓存
+压缩
+环境变量
+```
+
+Webpack 基本都有成熟的解决方案。
+
+Rollup 的 Plugin 生态同样非常丰富，但它的使用方式更加偏向：
+
+```text
+JavaScript / TypeScript
+        ↓
+     ES Module
+        ↓
+     Library
+```
+
+因此两者虽然都有非常强的扩展能力，但**解决的问题侧重点不同**。
+
+---
+
+## 十、Webpack 和 Rollup 到底怎么选？
+
+到这里，其实就可以把两者的区别归纳成一句话：
+
+> **Webpack 更偏向“完整的 Web 应用构建”，Rollup 更偏向“高质量的 JavaScript/TypeScript 模块打包”。**
+
+如果是一个中大型 Web 应用，例如：
+
+```text
+后台管理系统
+电商网站
+企业级 Web 应用
+复杂 SPA
+```
+
+通常会更加关注：
+
+- HMR
+- 代码分割
+- 静态资源处理
+- CSS
+- 图片
+- 字体
+- 多环境构建
+- 完整的开发服务器
+
+这类场景下，Webpack 的能力就比较合适。
+
+而如果是在开发：
+
+```text
+React 组件库
+Vue 组件库
+JavaScript 工具库
+TypeScript SDK
+```
+
+通常更加关注：
+
+- ES Module
+- Tree-Shaking
+- Bundle 体积
+- 多种模块格式
+- 简洁的构建配置
+
+这类场景下，Rollup 就非常适合。
+
+---
+
+## 十一、总结
+
+Webpack 和 Rollup 并不是简单的“新旧替代关系”。
+
+Webpack 对**代码分割、静态资源处理、开发服务器和 HMR**等 Web 应用开发能力支持得非常完整，因此在中大型 Web 应用中具有很强的适用性。
+
+Rollup 则更加关注**ES Module、Tree-Shaking 和库打包**，配置相对简单，生成的 Bundle 通常也比较适合直接作为 JavaScript/TypeScript 库的发布产物。
+
+当然，Webpack 同样支持 Tree-Shaking，Rollup 也并非完全不能用于 Web 应用。因此现在两者之间的差异已经不是简单的“Webpack 能做什么、Rollup 不能做什么”。
+
+更重要的是：
+
+> **Webpack 更像一个面向 Web 应用的完整构建系统，而 Rollup 更像一个专注于模块打包和库构建的工具。**
+
+所以选择构建工具时，与其纠结“Webpack 和 Rollup 谁更强”，不如先明确自己的项目属于哪种场景：
+
+**做 Web 应用 → 更关注完整的工程化能力。**
+
+**做 JS/TS 库 → 更关注模块打包、Tree-Shaking 和产物。**
+
+最终再根据项目需求选择合适的工具。
