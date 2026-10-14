@@ -26,7 +26,7 @@ export async function submitMessage(
   }
 
   try {
-    addMessage(parsed.data.name, parsed.data.content);
+    await addMessage(parsed.data.name, parsed.data.content);
   } catch {
     return { ...prevState, success: false, error: "服务器写入失败，请稍后再试" };
   }

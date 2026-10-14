@@ -7,8 +7,8 @@ export const metadata: Metadata = {
   description: "写下你的想法和建议",
 };
 
-export default function GuestbookPage() {
-  const messages = [...getMessages()].reverse();
+export default async function GuestbookPage() {
+  const messages = [...(await getMessages())].reverse();
 
   return (
     <div className="max-w-3xl mx-auto px-4 py-16">
@@ -29,7 +29,7 @@ export default function GuestbookPage() {
               <div className="flex items-center justify-between mb-2">
                 <span className="font-semibold">{message.name}</span>
                 <span className="text-xs text-[var(--muted)]">
-                  {new Date(message.createdAt).toLocaleString("zh-CN")}
+                  {message.createdAt.toLocaleString("zh-CN")}
                 </span>
               </div>
               <p className="text-sm whitespace-pre-wrap">{message.content}</p>

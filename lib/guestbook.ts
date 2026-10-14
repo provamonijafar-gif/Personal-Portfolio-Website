@@ -1,9 +1,5 @@
-import fs from "fs";
-import path from "path";
 import { z } from "zod";
-
-const dataDirectory = path.join(process.cwd(), "data");
-const guestbookFilePath = path.join(dataDirectory, "guestbook.json");
+import { prisma } from "./prisma";
 
 export const guestbookInputSchema = z.object({
   name: z.string().trim().min(1, "昵称不能为空").max(20, "昵称最多 20 字"),
@@ -13,32 +9,22 @@ export const guestbookInputSchema = z.object({
 export interface GuestbookMessage {
   name: string;
   content: string;
-  createdAt: string;
+  createdAt: Date;
 }
 
-export function getMessages(): GuestbookMessage[] {
-  if (!fs.existsSync(guestbookFilePath)) return [];
-
-  try {
-    const raw = fs.readFileSync(guestbookFilePath, "utf-8");
-    const parsed: unknown = JSON.parse(raw);
-    return Array.isArray(parsed) ? (parsed as GuestbookMessage[]) : [];
-  } catch {
-    return [];
-  }
+export async function getMessages(): Promise<GuestbookMessage[]> {
+  return prisma.message.findMany({
+    orderBy: {
+      createdAt: "asc",
+    },
+  });
 }
 
-export function addMessage(name: string, content: string): GuestbookMessage {
-  const message: GuestbookMessage = {
-    name,
-    content,
-    createdAt: new Date().toISOString(),
-  };
-
-  fs.mkdirSync(dataDirectory, { recursive: true });
-  const messages = getMessages();
-  messages.push(message);
-  fs.writeFileSync(guestbookFilePath, JSON.stringify(messages, null, 2), "utf-8");
-
-  return message;
+export async function addMessage(name: string, content: string): Promise<GuestbookMessage> {
+  return prisma.message.create({
+    data: {
+      name,
+      content,
+    },
+  });
 }
