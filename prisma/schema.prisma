@@ -15,3 +15,12 @@ model Message {
 
   @@map("messages")
 }
+
+model AdminUser {
+  id           Int      @id @default(autoincrement())
+  username     String   @unique @db.VarChar(20)
+  passwordHash String   @db.VarChar(255)
+  createdAt    DateTime @default(now())
+
+  @@map("admin_users")
+}

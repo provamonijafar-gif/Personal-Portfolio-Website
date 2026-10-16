@@ -7,6 +7,7 @@ export const guestbookInputSchema = z.object({
 });
 
 export interface GuestbookMessage {
+  id: number;
   name: string;
   content: string;
   createdAt: Date;
@@ -25,6 +26,14 @@ export async function addMessage(name: string, content: string): Promise<Guestbo
     data: {
       name,
       content,
+    },
+  });
+}
+
+export async function deleteMessage(id: number): Promise<void> {
+  await prisma.message.delete({
+    where: {
+      id,
     },
   });
 }
