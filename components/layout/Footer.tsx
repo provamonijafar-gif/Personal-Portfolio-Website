@@ -1,4 +1,5 @@
 import Link from "next/link";
+import { cacheLife } from "next/cache";
 import { FiGithub, FiMail, FiExternalLink } from "react-icons/fi";
 import { BiLogoTiktok } from "react-icons/bi";
 import { siteConfig } from "@/lib/site-config";
@@ -10,7 +11,9 @@ const contactIconMap = {
   external: FiExternalLink,
 } as const;
 
-export function Footer() {
+export async function Footer() {
+  const copyrightYear = await getCopyrightYear();
+
   return (
     <footer className="relative z-10 border-t border-[var(--card-border)] bg-[var(--card)]">
       <div className="max-w-5xl mx-auto px-4 py-12">
@@ -86,9 +89,16 @@ export function Footer() {
         </div>
 
         <div className="mt-8 pt-8 border-t border-[var(--card-border)] text-center text-sm text-[var(--muted)]">
-          &copy; {new Date().getFullYear()} {siteConfig.nameEn}. All rights reserved.
+          &copy; {copyrightYear} {siteConfig.nameEn}. All rights reserved.
         </div>
       </div>
     </footer>
   );
+}
+
+async function getCopyrightYear(): Promise<number> {
+  "use cache";
+  cacheLife("max");
+
+  return new Date().getFullYear();
 }

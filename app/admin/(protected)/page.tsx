@@ -1,7 +1,23 @@
+import { Suspense } from "react";
+import { connection } from "next/server";
 import { getMessages } from "@/lib/guestbook";
+import { RefreshPostsButton } from "./RefreshPostsButton";
 import { deleteMessageAction } from "./actions";
 
-export default async function AdminPage() {
+export default function AdminPage() {
+  return (
+    <Suspense
+      fallback={
+        <p className="text-sm text-[var(--muted)]">加载留言中...</p>
+      }
+    >
+      <AdminMessages />
+    </Suspense>
+  );
+}
+
+async function AdminMessages() {
+  await connection();
   const messages = await getMessages();
   const rows = [...messages].reverse();
 
@@ -13,6 +29,8 @@ export default async function AdminPage() {
           共 {rows.length} 条留言
         </p>
       </div>
+
+      <RefreshPostsButton />
 
       {rows.length === 0 ? (
         <div className="p-12 rounded-xl bg-[var(--card)] border border-[var(--card-border)] text-center text-sm text-[var(--muted)]">

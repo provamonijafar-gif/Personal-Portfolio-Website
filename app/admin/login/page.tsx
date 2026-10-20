@@ -1,4 +1,5 @@
 import type { Metadata } from "next";
+import { Suspense } from "react";
 import { redirect } from "next/navigation";
 import { auth } from "@/lib/auth";
 import { LoginForm } from "./LoginForm";
@@ -8,7 +9,21 @@ export const metadata: Metadata = {
   description: "进入网站管理后台",
 };
 
-export default async function AdminLoginPage() {
+export default function AdminLoginPage() {
+  return (
+    <Suspense
+      fallback={
+        <div className="min-h-screen flex items-center justify-center px-4">
+          <p className="text-sm text-[var(--muted)]">加载中...</p>
+        </div>
+      }
+    >
+      <AdminLoginGate />
+    </Suspense>
+  );
+}
+
+async function AdminLoginGate() {
   const session = await auth();
 
   if (session?.user?.role === "admin") {

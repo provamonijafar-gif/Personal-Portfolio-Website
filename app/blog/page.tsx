@@ -1,5 +1,5 @@
 import type { Metadata } from "next";
-import { getAllPosts, getAllTags } from "@/lib/mdx";
+import { getPosts, getTags } from "@/lib/posts";
 import { BlogList } from "./BlogList";
 import { MottoBlock } from "@/components/common/MottoBlock";
 
@@ -8,9 +8,8 @@ export const metadata: Metadata = {
   description: "技术文章和学习笔记",
 };
 
-export default function BlogPage() {
-  const posts = getAllPosts();
-  const tags = getAllTags();
+export default async function BlogPage() {
+  const [posts, tags] = await Promise.all([getPosts(), getTags()]);
 
   return (
     <div className="max-w-3xl mx-auto px-4 py-16">

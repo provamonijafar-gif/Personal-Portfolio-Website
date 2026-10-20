@@ -1,6 +1,6 @@
 "use server";
 
-import { revalidatePath } from "next/cache";
+import { revalidateTag } from "next/cache";
 import { addMessage, guestbookInputSchema } from "@/lib/guestbook";
 
 export interface SubmitState {
@@ -31,6 +31,6 @@ export async function submitMessage(
     return { ...prevState, success: false, error: "服务器写入失败，请稍后再试" };
   }
 
-  revalidatePath("/guestbook");
+  revalidateTag("guestbook", "max");
   return { success: true, error: null };
 }

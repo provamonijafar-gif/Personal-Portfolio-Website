@@ -2,7 +2,7 @@ import dynamic from "next/dynamic";
 import { HeroSection } from "@/components/home/HeroSection";
 import { MottoBlock } from "@/components/common/MottoBlock";
 import { ParticlesWrapper } from "@/components/home/ParticlesWrapper";
-import { getAllPosts } from "@/lib/mdx";
+import { getPosts } from "@/lib/posts";
 
 const GitHubContribution = dynamic(
   () => import("@/components/home/GitHubContribution").then((m) => m.GitHubContribution)
@@ -12,8 +12,8 @@ const FeaturedProjects = dynamic(
   () => import("@/components/home/FeaturedProjects").then((m) => m.FeaturedProjects)
 );
 
-export default function HomePage() {
-  const postCount = getAllPosts().length;
+export default async function HomePage() {
+  const postCount = (await getPosts()).length;
 
   return (
     <>

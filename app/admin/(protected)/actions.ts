@@ -1,6 +1,6 @@
 "use server";
 
-import { revalidatePath } from "next/cache";
+import { revalidatePath, revalidateTag } from "next/cache";
 import { z } from "zod";
 import { auth, signOut } from "@/lib/auth";
 import { deleteMessage } from "@/lib/guestbook";
@@ -22,8 +22,18 @@ export async function deleteMessageAction(formData: FormData): Promise<void> {
 
   await deleteMessage(parsed.data);
 
-  revalidatePath("/guestbook");
+  revalidateTag("guestbook", "max");
   revalidatePath("/admin");
+}
+
+export async function refreshPostsAction(): Promise<void> {
+  const session = await auth();
+
+  if (session?.user?.role !== "admin") {
+    throw new Error("未授权操作");
+  }
+
+  revalidateTag("posts", "max");
 }
 
 export async function signOutAction(): Promise<void> {
