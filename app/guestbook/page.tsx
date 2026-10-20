@@ -1,4 +1,6 @@
 import type { Metadata } from "next";
+import { Suspense } from "react";
+import { connection } from "next/server";
 import { getMessages } from "@/lib/guestbook";
 import { GuestbookForm } from "./GuestbookForm";
 
@@ -7,15 +9,26 @@ export const metadata: Metadata = {
   description: "写下你的想法和建议",
 };
 
-export default async function GuestbookPage() {
-  const messages = [...(await getMessages())].reverse();
+export default function GuestbookPage() {
 
   return (
     <div className="max-w-3xl mx-auto px-4 py-16">
       <h1 className="text-3xl font-bold mb-8">留言板</h1>
       <GuestbookForm />
 
-      <div className="mt-12 space-y-4">
+      <Suspense fallback={<p className="mt-12 text-sm text-[var(--muted)]">加载留言中...</p>}>
+        <MessageList />
+      </Suspense>
+    </div>
+  );
+}
+
+async function MessageList() {
+  await connection();
+  const messages = [...(await getMessages())].reverse();
+
+  return (
+    <div className="mt-12 space-y-4">
         {messages.length === 0 ? (
           <p className="text-center text-[var(--muted)] py-12">
             还没有留言，来写下第一条吧
@@ -37,6 +50,5 @@ export default async function GuestbookPage() {
           ))
         )}
       </div>
-    </div>
   );
 }

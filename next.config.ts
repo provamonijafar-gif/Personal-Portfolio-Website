@@ -3,6 +3,7 @@ import path from "path";
 import withBundleAnalyzer from "@next/bundle-analyzer";
 
 const nextConfig: NextConfig = {
+  cacheComponents: true,
   turbopack: {
     root: path.resolve(__dirname),
   },

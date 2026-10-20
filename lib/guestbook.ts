@@ -1,4 +1,5 @@
 import { z } from "zod";
+import { cacheTag } from "next/cache";
 import { prisma } from "./prisma";
 
 export const guestbookInputSchema = z.object({
@@ -14,6 +15,9 @@ export interface GuestbookMessage {
 }
 
 export async function getMessages(): Promise<GuestbookMessage[]> {
+  "use cache";
+  cacheTag("guestbook");
+
   return prisma.message.findMany({
     orderBy: {
       createdAt: "asc",

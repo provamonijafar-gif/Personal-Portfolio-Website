@@ -1,4 +1,5 @@
 import type { Metadata } from "next";
+import { Suspense } from "react";
 import Link from "next/link";
 import { redirect } from "next/navigation";
 import { auth } from "@/lib/auth";
@@ -9,7 +10,25 @@ export const metadata: Metadata = {
   description: "网站管理员后台",
 };
 
-export default async function ProtectedAdminLayout({
+export default function ProtectedAdminLayout({
+  children,
+}: {
+  children: React.ReactNode;
+}) {
+  return (
+    <Suspense
+      fallback={
+        <div className="min-h-screen bg-[var(--bg)] text-[var(--foreground)] flex items-center justify-center">
+          <p className="text-sm text-[var(--muted)]">加载中...</p>
+        </div>
+      }
+    >
+      <ProtectedAdminContent>{children}</ProtectedAdminContent>
+    </Suspense>
+  );
+}
+
+async function ProtectedAdminContent({
   children,
 }: {
   children: React.ReactNode;
