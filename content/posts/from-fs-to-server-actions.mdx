@@ -1,0 +1,319 @@
+---
+title: "从 fs 读写到 Server Actions：我给博客补上后端"
+date: "2026-10-21"
+description: "一个纯前端博客如何一步步长出后端：从服务端组件读文件开始，经过 Route Handler、Server Actions、Prisma + MySQL、Auth.js 鉴权、缓存，最后部署上线，记录每一步解决的真实问题。"
+tags: ["前端", "Next.js", "全栈"]
+---
+
+# 从 fs 读写到 Server Actions：我给博客补上后端
+
+我的博客本来是一个"纯前端"项目：Next.js 渲染页面，文章是 Markdown 文件，构建时打包成静态 HTML。直到我在 `lib/mdx.ts` 里看到 `fs.readFileSync`，才意识到一个问题：**这个项目里一直有真正的 Node.js 代码在跑，只是我从来没把它当成"后端"。**
+
+这篇文章记录我给它一步步补上后端能力的过程：读文件 → HTTP 接口 → Server Actions → 数据库 → 鉴权 → 缓存 → 部署上线。每一步都对应一个真实的功能需求，而不是为了学概念而学概念。
+
+---
+
+## 一、起点：原来我一直在写"服务端代码"
+
+先看这个项目最核心的一段代码：
+
+```ts
+import fs from "fs";
+import path from "path";
+
+const postsDirectory = path.join(process.cwd(), "content/posts");
+
+function listMdxFilenames(): string[] {
+  return fs
+    .readdirSync(postsDirectory)
+    .filter((filename) => filename.endsWith(".mdx"));
+}
+```
+
+`fs.readdirSync` 是 Node.js 的文件系统 API。它不可能在浏览器里跑——浏览器出于安全限制根本不能读磁盘。所以这段代码一定是在服务端执行的。
+
+那它是怎么"跑到"服务端的？关键在调用它的地方：
+
+```tsx
+export default async function BlogPage() {
+  const [posts, tags] = await Promise.all([getPosts(), getTags()]);
+  return <BlogList posts={posts} tags={tags} />;
+}
+```
+
+`BlogPage` 没有 `"use client"`，所以它是一个 React Server Component（RSC）。Next.js 在**服务器上**执行这个函数，调用 `getPosts()` 读磁盘上的 Markdown 文件，把结果作为 props 传给客户端组件 `BlogList`。
+
+这就是我理解 RSC 的转折点：**不是组件"在服务器渲染"这么抽象，而是"没有 use client 的函数体在 Node 里执行，可以用 fs、可以连数据库"。** 浏览器收到的只是执行结果（数据和 HTML），不是执行过程（代码）。
+
+---
+
+## 二、第一步：写一个真正的 HTTP 接口
+
+RSC 读文件是"框架内部的事"，浏览器无法主动调用它。想要一个外部可调用的接口，就要写 Route Handler：
+
+```ts
+// app/api/posts/route.ts
+import { NextRequest, NextResponse } from "next/server";
+import { getPosts } from "@/lib/posts";
+
+export async function GET(request: NextRequest) {
+  const tag = request.nextUrl.searchParams.get("tag");
+  const posts = await getPosts();
+  const filtered = tag
+    ? posts.filter((p) => p.tags.includes(tag))
+    : posts;
+
+  return NextResponse.json({ count: filtered.length, posts: filtered });
+}
+```
+
+导出一个 `GET` 函数，这个文件就成了一条 HTTP 路由：访问 `/api/posts?tag=前端` 就会执行它，返回 JSON。
+
+这里我理解了两件事：
+
+1. **接口的本质就是"一个函数 + 一个 URL"**。`request.nextUrl.searchParams` 解析查询参数，`NextResponse.json()` 序列化响应，没有什么魔法。
+2. **为什么项目里很多数据不需要走接口**。页面渲染时服务端组件直接 `await getPosts()`，数据不需要绕一圈 HTTP 请求再回来。接口留给真正需要"外部调用"的场景。
+
+---
+
+## 三、第二步：Server Actions，不用手写 fetch 的"接口"
+
+接口解决了"读"，接下来是"写"——我想加一个留言板，用户提交表单，数据存起来。
+
+传统做法是在服务端写 `POST /api/guestbook`，前端 `fetch` 它。但 Next.js 提供了更直接的方式——Server Action：
+
+```ts
+// app/guestbook/actions.ts
+"use server";
+
+import { revalidateTag } from "next/cache";
+import { addMessage, guestbookInputSchema } from "@/lib/guestbook";
+
+export async function submitMessage(
+  prevState: SubmitState,
+  formData: FormData
+): Promise<SubmitState> {
+  const parsed = guestbookInputSchema.safeParse({
+    name: formData.get("name"),
+    content: formData.get("content"),
+  });
+
+  if (!parsed.success) {
+    return { success: false, error: parsed.error.issues[0]?.message ?? "输入不合法" };
+  }
+
+  try {
+    await addMessage(parsed.data.name, parsed.data.content);
+  } catch {
+    return { success: false, error: "服务器写入失败，请稍后再试" };
+  }
+
+  revalidateTag("guestbook", "max");
+  return { success: true, error: null };
+}
+```
+
+注意第一行的 `"use server"`：它声明这个文件里的函数**只在服务端执行**，同时这个文件本身不会被打包进浏览器。
+
+前端调用它的方式出乎意料地简单：
+
+```tsx
+"use client";
+
+import { useActionState } from "react";
+import { submitMessage } from "./actions";
+
+export function GuestbookForm() {
+  const [state, formAction, isPending] = useActionState(submitMessage, initialState);
+
+  return (
+    <form action={formAction}>
+      <input name="name" maxLength={20} />
+      <textarea name="content" maxLength={200} />
+      {state.error && <p>{state.error}</p>}
+      <button type="submit" disabled={isPending}>提交留言</button>
+    </form>
+  );
+}
+```
+
+`<form action={formAction}>` 是 React 19 的表单 Action。提交时，React 自动把表单序列化成 `FormData`，通过一个框架生成的内部 HTTP 端点发给服务端，服务端执行 `submitMessage`，把返回值传回 `useActionState`。
+
+我最开始纠结过"服务端明明没写 `<form action>`，客户端怎么联动的"。后来想通了：**`formAction` 只是一个引用，真正的函数体在服务端文件里。** React 在编译时建立了这层映射——客户端组件拿到的是"如何调用这个函数"的描述，函数本身永远留在服务端。
+
+对比 Route Handler，我的理解是：
+
+- **Route Handler** 是显式的 HTTP 接口，任何客户端都能调（包括别的项目、curl、App）
+- **Server Action** 是项目内部的调用通道，天然私有，适合"自己的表单提交给自己的后端"这种场景
+
+---
+
+## 四、第三步：把数据从 JSON 文件搬进 MySQL
+
+留言板第一版把数据存在 JSON 文件里。能用，但有几个问题：并发写入会互相覆盖、查询和分页要手动 filter、文件不天然支持事务。
+
+所以我引入了 Prisma + MySQL。Prisma 是一个 ORM（对象关系映射），用一份 schema 描述数据模型，然后生成带类型的客户端代码：
+
+```prisma
+// prisma/schema.prisma
+model Message {
+  id        Int      @id @default(autoincrement())
+  name      String   @db.VarChar(20)
+  content   String   @db.VarChar(200)
+  createdAt DateTime @default(now())
+
+  @@map("messages")
+}
+```
+
+运行 `prisma migrate dev` 会生成 SQL 建表；`prisma generate` 生成类型安全的客户端。之后业务代码里就可以这样写：
+
+```ts
+// lib/guestbook.ts
+import { prisma } from "./prisma";
+
+export async function getMessages(): Promise<GuestbookMessage[]> {
+  "use cache";
+  cacheTag("guestbook");
+  return prisma.message.findMany({
+    orderBy: { createdAt: "asc" },
+  });
+}
+
+export async function addMessage(name: string, content: string) {
+  return prisma.message.create({
+    data: { name, content },
+  });
+}
+```
+
+`prisma.message` 这个访问器名来自 schema 里的 `model Message`——模型名首字母大写，访问器自动小写。整个调用链是分层的：
+
+- `lib/prisma.ts`：创建 PrismaClient 实例（连接配置）
+- `lib/guestbook.ts`：业务数据层（做什么查询）
+- `app/guestbook/actions.ts`：Server Actions（表单入口，校验 + 调数据层）
+
+多分一层的意义：actions.ts 不直接操作 Prisma，将来如果换成别的存储（比如 Redis），只需要改 guestbook.ts，表单入口一行不动。
+
+---
+
+## 五、第四步：给留言板加一把锁
+
+有了数据库，我加了一个管理后台，只有登录的管理员能删除留言。用的是 Auth.js（NextAuth v5）。
+
+核心是 Credentials Provider——用自己数据库里的用户名密码登录：
+
+```ts
+// lib/auth.ts
+const admin = await prisma.adminUser.findUnique({
+  where: { username: parsed.data.username },
+});
+
+const isValid = await bcrypt.compare(
+  parsed.data.password,
+  admin.passwordHash
+);
+
+if (!isValid) return null;
+
+return { id: String(admin.id), name: admin.username, role: "admin" };
+```
+
+几个安全要点：
+
+1. **密码不存明文**。注册时用 `bcrypt.hash` 加盐哈希，登录时用 `bcrypt.compare` 对比。数据库被拖走也拿不到原密码。
+2. **登录成功后发 JWT**。Auth.js 用 `AUTH_SECRET` 签名 token，放进 cookie。后续请求带着 cookie，服务端验证签名就知道"这是管理员"，不需要每次查库。
+3. **路由保护放在服务端布局里**：
+
+```tsx
+// app/admin/(protected)/layout.tsx
+const session = await auth();
+
+if (session?.user?.role !== "admin") {
+  redirect("/admin/login");
+}
+```
+
+`(protected)` 是 Route Group——不影响 URL，只用来把一组页面包在同一个带鉴权的 layout 里。
+
+这一步我踩的最大的坑在部署时：线上登录一直报 `There was a problem with the server configuration`。排查发现是 **Auth.js 在生产环境必须显式提供 `AUTH_SECRET`**（开发环境会自动生成随机密钥，掩盖了这个问题）。去 Vercel 加上环境变量、重新部署后就好了。教训是：有些配置在开发环境"看起来不需要"，只是因为框架替你填了默认值。
+
+---
+
+## 六、第五步：缓存，让"读"变快
+
+有了数据库之后每次请求都查库，浪费。Next.js 的 Cache Components 模式提供了函数级缓存：
+
+```ts
+export async function getMessages(): Promise<GuestbookMessage[]> {
+  "use cache";
+  cacheTag("guestbook");
+  return prisma.message.findMany({ orderBy: { createdAt: "asc" } });
+}
+```
+
+`"use cache"` 声明这个函数的返回值可以被缓存；`cacheTag("guestbook")` 给缓存打上标签。写入数据后失效缓存：
+
+```ts
+// actions.ts 里写入成功后
+revalidateTag("guestbook", "max");
+```
+
+心智模型是**写后失效（write-through invalidation）**：读的时候缓存，写的时候把相关标签的缓存全部作废，下次读重新查库。这样既不用手动管理"什么时候过期"，也保证用户提交完刷新就能看到自己的留言。
+
+---
+
+## 七、第六步：部署上线，才是全栈的真正开始
+
+本地跑通和线上跑通之间隔着一整个世界。这次部署我处理了四个真实问题：
+
+**问题 1：构建时找不到 Prisma Client**
+
+`prisma generate` 生成的客户端代码被 gitignore 了（生成物不入库），Vercel 构建时自然没有。解决办法是在 `package.json` 加：
+
+```json
+"postinstall": "prisma generate"
+```
+
+每次 `npm install` 之后自动重新生成。同时要注意生成逻辑不能在构建时连接数据库——schema 生成客户端只需要 schema 文件，不需要数据库在线。
+
+**问题 2：线上数据库连接不上**
+
+本地 MySQL 换成了 Aiven 云数据库，代码不用改，只改环境变量。但有两个坑：
+
+- **TLS 证书**：Aiven 强制加密连接，需要 CA 证书。本地证书是文件（`DATABASE_SSL_CA_PATH`），Vercel 上文件不存在，就把证书内容直接贴进环境变量（`DATABASE_SSL_CA`）。代码里用同一个函数兼容两种来源。
+- **连接超时**：mariadb 驱动默认超时只有 1000ms，而连云数据库的网络延迟就有几秒。显式设置 `connectTimeout: 15000` 才稳定。
+
+```ts
+const adapter = new PrismaMariaDb({
+  host: process.env.DATABASE_HOST,
+  port: Number(process.env.DATABASE_PORT),
+  user: process.env.DATABASE_USER,
+  password: process.env.DATABASE_PASSWORD,
+  database: process.env.DATABASE_NAME,
+  connectTimeout: 15000,
+  ssl: { ca, rejectUnauthorized: true },
+});
+```
+
+**问题 3：CI/CD 是什么**
+
+每次 push 代码，GitHub Actions 自动跑 lint、build，Vercel 自动部署。相当于一个不知疲倦的同事：你推代码，它替你验证"这份代码能不能构建成功"，失败了马上告诉你，不用等到线上才发现。
+
+**问题 4：配置和代码分离**
+
+整个项目从本地切到线上，**一行业务代码没改**，只改了环境变量。数据库地址、密码、密钥、证书——全部通过环境变量注入。这就是 12-factor app 的核心原则：同一份代码，靠配置适配不同环境。本地 `.env` 不入 git，线上变量配在 Vercel 控制台，密钥永远不进代码仓库。
+
+---
+
+## 八、总结：全栈到底意味着什么
+
+做完这六步，我对"全栈"的理解从"会前端 + 会后端两套技术"变成了一个更具体的图景：
+
+**同一份代码里有两种执行环境。** 没有标 `"use client"` 的部分跑在 Node 里，可以用 fs、可以连数据库；标了的部分跑在浏览器里，负责交互。数据在两者之间以纯 JSON 的形式流动。
+
+**框架封装了胶水层，但不是替代底层。** Route Handler 替我处理了 HTTP 路由注册，Server Actions 替我生成了调用端点，Prisma 替我生成了类型安全的 SQL——但每一层背后是什么（HTTP 请求、序列化、SQL 查询），我仍然需要知道原理，否则线上出了问题（比如连接超时、密钥缺失）完全无从排查。
+
+**部署能力是被严重低估的技能。** 本地跑通只完成了 80%，剩下 20%——环境变量、TLS、构建产物、CI 流水线——才是"真正能用的产品"和"我电脑上能跑的 demo"之间的距离。
+
+这个项目现在的样子：一个能读文件渲染文章、有 HTTP 接口、有 Server Actions 写入、存 MySQL、带管理员鉴权和缓存、部署在 Vercel 上的全栈应用。它不大，但每一条链路都是完整的。接下来我打算脱离"跟着做"的模式，独立设计并实现一个小需求，把这套链路再走一遍——真正的掌握，是从"看懂"到"能凭空写出来"的那一步。
