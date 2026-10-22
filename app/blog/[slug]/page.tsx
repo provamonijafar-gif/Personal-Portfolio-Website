@@ -1,5 +1,7 @@
 import type { Metadata } from "next";
+import { Suspense } from "react";
 import { notFound } from "next/navigation";
+import { connection } from "next/server";
 import { cacheLife, cacheTag } from "next/cache";
 import { MDXRemote } from "next-mdx-remote/rsc";
 import remarkGfm from "remark-gfm";
@@ -38,14 +40,21 @@ export default async function BlogPostPage({ params }: Props) {
   const post = await getPost(slug);
   if (!post) notFound();
 
-  const likeCount = await getLikeCount(slug);
-
   return (
     <PostContent meta={post.meta}>
       <PostBody slug={slug} content={post.content} />
-      <LikeButton slug={slug} initialCount={likeCount} />
+      <Suspense fallback={null}>
+        <LikeSection slug={slug} />
+      </Suspense>
     </PostContent>
   );
+}
+
+async function LikeSection({ slug }: { slug: string }) {
+  await connection();
+  const likeCount = await getLikeCount(slug);
+
+  return <LikeButton slug={slug} initialCount={likeCount} />;
 }
 
 async function PostBody({
