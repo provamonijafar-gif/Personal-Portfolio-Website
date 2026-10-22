@@ -24,3 +24,12 @@ model AdminUser {
 
   @@map("admin_users")
 }
+
+model ArticleLike{
+  id           Int      @id @default(autoincrement())
+  slug         String   @db.VarChar(100) @unique
+  count        Int      @default(0)
+  createdAt    DateTime @default(now())
+
+  @@map("article_likes")
+}
