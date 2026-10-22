@@ -20,21 +20,19 @@ export function BlogList({ posts, tags }: BlogListProps) {
       <div className="flex flex-wrap gap-2 mb-8">
         <button
           onClick={() => setActiveTag(null)}
-          className={`px-3 py-1.5 rounded-lg text-sm transition-colors ${
-            activeTag === null
+          className={`px-3 py-1.5 rounded-lg text-sm transition-colors ${activeTag === null
               ? "bg-[var(--accent)] text-white"
               : "bg-[var(--card)] text-[var(--muted)] border border-[var(--card-border)] hover:text-[var(--foreground)]"
-          }`}
+            }`}
         >
           全部
         </button>
         <button
           onClick={() => setActiveTag("前端")}
-          className={`px-3 py-1.5 rounded-lg text-sm transition-colors ${
-            activeTag === "前端"
+          className={`px-3 py-1.5 rounded-lg text-sm transition-colors ${activeTag === "前端"
               ? "bg-[var(--accent)] text-white"
               : "bg-[var(--card)] text-[var(--muted)] border border-[var(--card-border)] hover:text-[var(--foreground)]"
-          }`}
+            }`}
         >
           前端
         </button>

@@ -8,8 +8,10 @@ import rehypeAutolinkHeadings from "rehype-autolink-headings";
 import rehypePrettyCode from "rehype-pretty-code";
 import { rehypeMermaid } from "@/lib/rehype-mermaid";
 import { getPost, getPosts } from "@/lib/posts";
+import { getLikeCount } from "@/lib/article-likes";
 import { mdxComponents } from "@/components/mdx";
 import { PostContent } from "./PostContent";
+import { LikeButton } from "./LikeButton";
 
 interface Props {
   params: Promise<{ slug: string }>;
@@ -36,9 +38,12 @@ export default async function BlogPostPage({ params }: Props) {
   const post = await getPost(slug);
   if (!post) notFound();
 
+  const likeCount = await getLikeCount(slug);
+
   return (
     <PostContent meta={post.meta}>
       <PostBody slug={slug} content={post.content} />
+      <LikeButton slug={slug} initialCount={likeCount} />
     </PostContent>
   );
 }

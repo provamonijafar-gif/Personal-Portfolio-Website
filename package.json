@@ -9,6 +9,8 @@
     "analyze": "ANALYZE=true next build --webpack",
     "start": "next start",
     "lint": "eslint",
+    "format": "prettier --write .",
+    "format:check": "prettier --check .",
     "validate": "tsx scripts/validate-content.ts",
     "ci": "npm run validate && npm run build"
   },
@@ -46,6 +48,7 @@
     "@types/react-dom": "^19",
     "eslint": "^9",
     "eslint-config-next": "16.1.6",
+    "prettier": "^3.9.10",
     "prisma": "^7.10.0",
     "tailwindcss": "^4",
     "tsx": "^4.21.0",
