@@ -2,6 +2,8 @@ import { prisma } from "./prisma";
 import { cacheTag } from "next/cache";
 import { z } from "zod";
 
+export const LIKED_COOKIE = "liked_posts";
+
 export const likeInputSchema = z.object({
   slug: z.string().trim().min(1, "不能为空").max(100, "最多 100 个字符串"),
 });
