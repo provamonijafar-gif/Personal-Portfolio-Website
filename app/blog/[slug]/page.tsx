@@ -2,6 +2,7 @@ import type { Metadata } from "next";
 import { Suspense } from "react";
 import { notFound } from "next/navigation";
 import { connection } from "next/server";
+import { cookies } from "next/headers";
 import { cacheLife, cacheTag } from "next/cache";
 import { MDXRemote } from "next-mdx-remote/rsc";
 import remarkGfm from "remark-gfm";
@@ -10,7 +11,7 @@ import rehypeAutolinkHeadings from "rehype-autolink-headings";
 import rehypePrettyCode from "rehype-pretty-code";
 import { rehypeMermaid } from "@/lib/rehype-mermaid";
 import { getPost, getPosts } from "@/lib/posts";
-import { getLikeCount } from "@/lib/article-likes";
+import { getLikeCount, LIKED_COOKIE } from "@/lib/article-likes";
 import { mdxComponents } from "@/components/mdx";
 import { PostContent } from "./PostContent";
 import { LikeButton } from "./LikeButton";
@@ -52,18 +53,13 @@ export default async function BlogPostPage({ params }: Props) {
 
 async function LikeSection({ slug }: { slug: string }) {
   await connection();
-  const likeCount = await getLikeCount(slug);
+  const [likeCount, cookieStore] = await Promise.all([getLikeCount(slug), cookies()]);
+  const likedSlugs = cookieStore.get(LIKED_COOKIE)?.value.split(",") ?? [];
 
-  return <LikeButton slug={slug} initialCount={likeCount} />;
+  return <LikeButton slug={slug} initialCount={likeCount} hasLiked={likedSlugs.includes(slug)} />;
 }
 
-async function PostBody({
-  slug,
-  content,
-}: {
-  slug: string;
-  content: string;
-}) {
+async function PostBody({ slug, content }: { slug: string; content: string }) {
   "use cache";
   cacheLife("hours");
   cacheTag("posts", `post:${slug}`);
