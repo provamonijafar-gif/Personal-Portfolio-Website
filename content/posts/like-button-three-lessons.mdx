@@ -1,0 +1,159 @@
+---
+title: "我给博客加了个点赞按钮，然后 CI 教了我三课"
+date: "2026-10-22"
+description: "给文章页加一个最小的点赞按钮，需要建表、写 Server Action、做客户端组件，然后部署。这一路上 CI 和构建流程用三个真实的报错，教会了我构建时与请求时、本地与线上、能跑与完整这三层区别。"
+tags: ["前端", "Next.js", "全栈"]
+---
+
+# 我给博客加了个点赞按钮，然后 CI 教了我三课
+
+上一篇文章写到我把博客从纯前端补成了全栈。这次我给自己出了个小练习：给文章页加一个点赞按钮。需求一句话就能说完——显示点赞数，点击加一，存进数据库。
+
+功能本身不大，但从写代码到 CI 变绿再到线上可用，我踩了三个坑。每个坑单拎出来都不深，叠在一起却把"代码跑在哪"这个问题彻底讲透了。这篇文章按时间顺序记录这三课。
+
+---
+
+## 一、动手前：三个没有标准答案的决策
+
+写代码之前，有三个问题必须先想清楚。
+
+**决策 1：点赞数怎么存？** 我的文章是 Markdown 文件，不在数据库里，那数据库怎么知道"这一行对应哪篇文章"？答案在 URL 里：slug 是唯一的。所以表设计成一篇文章一行计数：
+
+```prisma
+model ArticleLike {
+  id        Int      @id @default(autoincrement())
+  slug      String   @db.VarChar(100) @unique
+  count     Int      @default(0)
+  createdAt DateTime @default(now())
+
+  @@map("article_likes")
+}
+```
+
+另一种设计是"每次点赞插一行记录"，好处是能记录谁在什么时候点的（做防刷、做分析），代价是每次读数都要 COUNT 聚合。个人博客选计数表更划算——**选哪种取决于你需要哪种未来**。
+
+**决策 2：写操作用什么？** 点赞是本项目页面里的按钮触发的，没有外部调用方，用 Server Action 而不是 Route Handler。Route Handler 留给"任何客户端都可能调"的接口。
+
+**决策 3：写入的核心操作**。第一次点赞时行还不存在，所以用 upsert——有则更新，无则创建：
+
+```ts
+const row = await prisma.articleLike.upsert({
+  where: { slug },
+  create: { count: 1, slug },
+  update: { count: { increment: 1 } },
+});
+```
+
+`increment: 1` 是数据库在服务端做的原子自增，两个人同时点赞也不会互相覆盖。
+
+---
+
+## 二、第一课：构建时和请求时是两个世界
+
+功能写完，本地类型检查全绿，我推了代码，然后 CI 报了这么一个错：
+
+```text
+Error [PrismaClientKnownRequestError]:
+Message: `pool timeout: failed to retrieve a connection from pool after 10000ms`
+    at async lib/article-likes.ts:13
+Error occurred prerendering page "/blog/webpack-vs-rollup"
+```
+
+查库超时？可我本地明明跑通了。排查后发现问题的本质：**我把查库写在了页面组件的主体里，而 `next build` 生成静态页时会把页面代码当场执行一遍**。于是"查数据库"变成了构建时依赖。CI 的构建机上没有 `.env`（被 gitignore 了），没有数据库密码，连接悬了十秒，超时。
+
+这里有个关键认知：页面代码有两种执行时间。**构建时**（build time）是打包机器执行页面代码、生成静态 HTML 的时刻；**请求时**（request time）是用户访问、服务器现场响应的时刻。文章正文是 Markdown 文件，内容固定，在构建时渲染成静态页毫无问题。但点赞数每次有人点赞都会变，它天生属于请求时——就算 CI 有数据库钥匙，把它烙进构建时的静态 HTML 也是错的。
+
+修复用的模式，我在留言板里其实早就写过：`connection()` 加 `Suspense`。
+
+```tsx
+<Suspense fallback={null}>
+  <LikeSection slug={slug} />
+</Suspense>
+
+async function LikeSection({ slug }: { slug: string }) {
+  await connection();
+  const [likeCount, cookieStore] = await Promise.all([
+    getLikeCount(slug),
+    cookies(),
+  ]);
+  return <LikeButton slug={slug} initialCount={likeCount} />;
+}
+```
+
+`connection()` 是 Next.js 的声明："这个组件依赖请求时才有的信息，构建时别碰我。"于是构建时只把 Suspense 的 fallback 打进静态壳，组件体一行不执行；用户访问时壳先秒开，服务端现场查库，把按钮这块 HTML 流式补进页面。
+
+一个类比：文章正文是中央厨房的预制菜，内容固定，提前做好上菜快；点赞数是现场明档，每桌现做。`Suspense` 是"本菜品现做，稍候上桌"的告示牌，`connection()` 是后厨的"此单勿预制作"标签。
+
+推代码之前我修正了结构，CI 转绿。这一课的收获：**写页面时先问自己——这段数据是构建时就能定下来的，还是每个请求都不一样的？** 放错时间层，本地怎么测都发现不了，CI 会替你发现。
+
+---
+
+## 三、第二课：本地全绿不等于线上全绿
+
+推代码之前，本地 build 还给过我一个更隐蔽的下马威：
+
+```text
+Module not found: Can't resolve './LikeButton'
+```
+
+文件明明存在。更诡异的是，TypeScript 检查全绿，文件也能正常读取，唯独打包器说找不到。
+
+答案藏在文件名里：我创建的文件叫 `likeButton.tsx`（小写 l），而 import 写的是 `./LikeButton`（大写 L）。**Windows 文件系统不区分大小写**，所以本地读文件、类型检查全部通过；**但 Turbopack 的模块解析区分大小写**，直接找不到文件。
+
+这个坑真正狠的地方在于：如果不修，它在本地永远不会暴露，直到部署到 Linux 构建机上才炸——而 Linux 和 Turbopack 一样区分大小写。也就是说，这个 bug 的必然结局是"线上白屏，本地全绿"。
+
+从这次开始我给自己立了规矩：**组件文件名一律 PascalCase，与导入路径严格一致**，并且推代码前必须跑一次完整 build——类型检查通过只说明"代码逻辑成立"，不说明"打包器能找到所有零件"。
+
+---
+
+## 四、第三课：能跑的方案不是完整的方案
+
+功能上线后，第一个反馈来自我自己：按钮可以无限点赞。打开无痕模式点一百次，数字就涨一百。能跑，但不是完整的。
+
+我选择了服务端 cookie 校验：点赞成功时种一个记录"赞过哪些文章"的 cookie（httpOnly，有效期一年），下次点赞时先查 cookie，已赞直接拒绝：
+
+```ts
+const cookieStore = await cookies();
+const likedSlugs = cookieStore.get(LIKED_COOKIE)?.value.split(",") ?? [];
+
+if (likedSlugs.includes(parsed.data.slug)) {
+  return { success: false, error: "你已经赞过这篇文章啦", count: null };
+}
+
+const count = await likeArticle(parsed.data.slug);
+revalidateTag("likes", "max");
+cookieStore.set(LIKED_COOKIE, [...likedSlugs, parsed.data.slug].join(","), {
+  path: "/",
+  maxAge: 60 * 60 * 24 * 365,
+  httpOnly: true,
+  sameSite: "lax",
+});
+```
+
+同时页面加载时服务端读同一个 cookie，把"是否已赞"传给按钮，赞过的文章直接显示"已赞"并禁用。
+
+但我必须诚实：**这个方案挡不住清 cookie 和无痕模式**，cookie 存在用户手里，不是保险柜。真正的一人一票需要账号体系，真正的防刷需要 IP 级记录——每一层都是成本更高的方案。个人博客用 cookie，性价比刚好；哪天需要账号级点赞，那就是下一个练习。
+
+这一课的收获：**"功能能跑"和"功能完整"之间隔着一整段需求分析**。无限点赞不是 bug，是我最初的需求就没写"同一浏览器限一次"；需求升级了，方案就得跟着换挡。
+
+---
+
+## 五、复盘：一个按钮背后的完整数据流
+
+现在文章页的点赞链路长这样：
+
+```text
+构建时：正文预渲染进静态壳，点赞区只有一个 Suspense 占位
+   ↓ 用户访问
+请求时：connection() 放行 → 并行查点赞数和 cookie → 流式补进按钮
+   ↓ 用户点击
+React 打包 FormData（含隐藏的 slug）→ Server Action
+   ↓ 服务端
+zod 校验 → cookie 查重 → upsert 原子自增 → revalidateTag 失效缓存 → 种 cookie
+   ↓ 返回
+useActionState 更新 UI → 按钮变"已赞 N"并禁用
+```
+
+写这篇文章时我数了一下：一个小小的点赞按钮，用到了 Prisma 建模、迁移、缓存声明、缓存失效、Server Action、cookies、Suspense 流式渲染、客户端状态、部署排查。**全栈不是"会很多技术"，而是知道每个技术该站在链路的哪个位置。**
+
+给同样在走这条路的你两个建议。第一，给自己的项目加功能时，把"构建时还是请求时"当成和"服务端还是客户端"同级别的问题来问——后者大家都记得，前者要等 CI 用报错教你。第二，每个坑修完写下来。这三课单看都不深，但它们叠加起来的那个认知——**部署不是终点，而是代码的第一轮真实考试**——只有踩过的人才真正拥有。
